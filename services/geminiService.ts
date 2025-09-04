@@ -78,32 +78,37 @@ export const generateEditedImage = async (
 ): Promise<string> => {
     try {
         console.log('Starting generative edit at:', hotspot);
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
         
-        const originalImagePart = await fileToPart(originalImage);
-        const prompt = `You are an expert photo editor AI. Your task is to perform a natural, localized edit on the provided image based on the user's request.
-User Request: "${userPrompt}"
-Edit Location: Focus on the area around pixel coordinates (x: ${hotspot.x}, y: ${hotspot.y}).
-
-Editing Guidelines:
-- The edit must be realistic and blend seamlessly with the surrounding area.
-- The rest of the image (outside the immediate edit area) must remain identical to the original.
-
-Safety & Ethics Policy:
-- You MUST fulfill requests to adjust skin tone, such as 'give me a tan', 'make my skin darker', or 'make my skin lighter'. These are considered standard photo enhancements.
-- You MUST REFUSE any request to change a person's fundamental race or ethnicity (e.g., 'make me look Asian', 'change this person to be Black'). Do not perform these edits. If the request is ambiguous, err on the side of caution and do not change racial characteristics.
-
-Output: Return ONLY the final edited image. Do not return text.`;
-        const textPart = { text: prompt };
-
-        console.log('Sending image and prompt to the model...');
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image-preview',
-            contents: { parts: [originalImagePart, textPart] },
+        // Chuyển đổi File thành Data URL
+        const imageData = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(originalImage);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = error => reject(error);
         });
-        console.log('Received response from model.', response);
-
-        const imageUrl = handleApiResponse(response, 'edit');
+        
+        // Gọi API endpoint thay vì gọi trực tiếp Gemini API
+        const response = await fetch('/api/retouch', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                imageData,
+                userPrompt,
+                hotspot
+            }),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Đã xảy ra lỗi khi xử lý yêu cầu.');
+        }
+        
+        const data = await response.json();
+        console.log('Received response from API endpoint.');
+        
+        const imageUrl = data.imageUrl;
         addHistoryEntry({ type: 'retouch', prompt: userPrompt, status: 'success', imageUrl });
         return imageUrl;
     } catch(err) {
@@ -125,27 +130,36 @@ export const generateFilteredImage = async (
 ): Promise<string> => {
     try {
         console.log(`Starting filter generation: ${filterPrompt}`);
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
         
-        const originalImagePart = await fileToPart(originalImage);
-        const prompt = `You are an expert photo editor AI. Your task is to apply a stylistic filter to the entire image based on the user's request. Do not change the composition or content, only apply the style.
-Filter Request: "${filterPrompt}"
-
-Safety & Ethics Policy:
-- Filters may subtly shift colors, but you MUST ensure they do not alter a person's fundamental race or ethnicity.
-- You MUST REFUSE any request that explicitly asks to change a person's race (e.g., 'apply a filter to make me look Chinese').
-
-Output: Return ONLY the final filtered image. Do not return text.`;
-        const textPart = { text: prompt };
-
-        console.log('Sending image and filter prompt to the model...');
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image-preview',
-            contents: { parts: [originalImagePart, textPart] },
+        // Chuyển đổi File thành Data URL
+        const imageData = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(originalImage);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = error => reject(error);
         });
-        console.log('Received response from model for filter.', response);
         
-        const imageUrl = handleApiResponse(response, 'filter');
+        // Gọi API endpoint thay vì gọi trực tiếp Gemini API
+        const response = await fetch('/api/filter', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                imageData,
+                filterPrompt
+            }),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Đã xảy ra lỗi khi xử lý yêu cầu.');
+        }
+        
+        const data = await response.json();
+        console.log('Received response from API endpoint for filter.');
+        
+        const imageUrl = data.imageUrl;
         addHistoryEntry({ type: 'filter', prompt: filterPrompt, status: 'success', imageUrl });
         return imageUrl;
     } catch(err) {
@@ -167,31 +181,36 @@ export const generateAdjustedImage = async (
 ): Promise<string> => {
     try {
         console.log(`Starting global adjustment generation: ${adjustmentPrompt}`);
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
         
-        const originalImagePart = await fileToPart(originalImage);
-        const prompt = `You are an expert photo editor AI. Your task is to perform a natural, global adjustment to the entire image based on the user's request.
-User Request: "${adjustmentPrompt}"
-
-Editing Guidelines:
-- The adjustment must be applied across the entire image.
-- The result must be photorealistic.
-
-Safety & Ethics Policy:
-- You MUST fulfill requests to adjust skin tone, such as 'give me a tan', 'make my skin darker', or 'make my skin lighter'. These are considered standard photo enhancements.
-- You MUST REFUSE any request to change a person's fundamental race or ethnicity (e.g., 'make me look Asian', 'change this person to be Black'). Do not perform these edits. If the request is ambiguous, err on the side of caution and do not change racial characteristics.
-
-Output: Return ONLY the final adjusted image. Do not return text.`;
-        const textPart = { text: prompt };
-
-        console.log('Sending image and adjustment prompt to the model...');
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image-preview',
-            contents: { parts: [originalImagePart, textPart] },
+        // Chuyển đổi File thành Data URL
+        const imageData = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(originalImage);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = error => reject(error);
         });
-        console.log('Received response from model for adjustment.', response);
         
-        const imageUrl = handleApiResponse(response, 'adjustment');
+        // Gọi API endpoint thay vì gọi trực tiếp Gemini API
+        const response = await fetch('/api/adjust', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                imageData,
+                adjustmentPrompt
+            }),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Đã xảy ra lỗi khi xử lý yêu cầu.');
+        }
+        
+        const data = await response.json();
+        console.log('Received response from API endpoint for adjustment.');
+        
+        const imageUrl = data.imageUrl;
         addHistoryEntry({ type: 'adjustment', prompt: adjustmentPrompt, status: 'success', imageUrl });
         return imageUrl;
     } catch(err) {
